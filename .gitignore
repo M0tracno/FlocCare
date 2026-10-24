@@ -1,0 +1,8 @@
+data/
+.env
+.firecrawl/
+node_modules/
+demo/tmp-projects/
+demo/tools/
+.playwright-cli/
+Pagecraft-Submission.zip
