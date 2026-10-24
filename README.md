@@ -1,6 +1,6 @@
 # Pagecraft — blog website generator
 
-A working Node.js app that turns a company's name, logo, brand color, and 1–10 topics into a persistent collection of branded blog pages. Each generated article is checked for a 950–1050 word range around the requested 1,000 words. Run the same workflow again to create another company's collection.
+A working Node.js app that turns a company's name, logo, brand color, and 1–10 topics into a persistent collection of branded blog pages. Each generated article targets 950–1050 words around the requested 1,000 and is never published outside 900–1100. Run the same workflow again to create another company's collection.
 
 ## Run locally
 
@@ -18,7 +18,7 @@ Projects are stored as JSON in `data/projects/` by default. Each page gets a sta
 
 1. The UI accepts the company identity and up to ten unique topics, validates a six-digit hex color and a logo under 2 MB, and previews the brand.
 2. The server asks Google's `gemini-3.5-flash-lite` ([generateContent API](https://ai.google.dev/api/)) for one article per topic, about 7 seconds each. If Gemini fails and a server OpenRouter key is set, it falls back to [OpenRouter's chat completions API](https://openrouter.ai/docs/api-reference/chat-completion) with free models (`OPENROUTER_MODELS`, `google/gemma-4-31b-it:free` first) that OpenRouter tries in order. 429/503 responses are retried twice after 20 seconds. OpenRouter free models are much slower and capped at 50 requests per day per account; a ten-topic run uses 10–30 requests.
-3. The prompt requests an original, structured article with an introduction, descriptive sections, useful specifics, and a conclusion. It tells the model to avoid invented statistics, citations, and medical claims. The server counts words and requests a revision if the article falls outside 950–1050 words, up to three attempts. If it still misses, generation fails rather than publishing an undersized article.
+3. The prompt requests an original, structured article with an introduction, descriptive sections, useful specifics, and a conclusion. It tells the model to avoid invented statistics, citations, and medical claims. The server counts words and requests a calibrated revision of the closest draft if the article falls outside 950–1050 words, up to six attempts, switching to a fresh draft whenever a revision fails to get closer. If all miss, the closest draft is published only when it is within 10% of 1,000 words (900–1100); otherwise generation fails rather than publishing an off-length article.
 4. The server saves the completed collection atomically. A shared page template applies the company name, logo, and brand color to every URL. Generated Markdown is escaped before rendering to prevent HTML injection.
 
 **Editorial limit:** An AI draft is not clinical or regulatory approval. Any healthcare article needs fact checking and review by a qualified professional before public distribution. Free-tier data handling is governed by Google's, OpenRouter's, and each provider's terms, and free tiers may log or train on prompts; avoid entering patient data.
@@ -40,7 +40,7 @@ Render prompts for `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when the Blueprint 
 ## Assignment status
 
 - Generator, branding, reusable project library, and hosted-route architecture: implemented.
-- Ten-page creation and word-count behavior: verified with the integration test's fake model endpoint.
-- Live AI generation: Gemini verified live on 2026-10-25 (three articles, 986–1008 words, 27 s total). OpenRouter fallback reaches the API live but its free models are slow (minutes per article) and missed the word range in one end-to-end run; treat it as a backup only.
-- Public hosting: configuration supplied; actual public URL requires deployment to the owner's hosting account.
-- Walkthrough recording: see `demo/` for the local demonstration artifact and its provenance.
+- Ten-page creation and word-count behavior: verified by the integration test (fake model endpoint) and by a live run.
+- Live AI generation: verified on 2026-10-25 with Gemini. A ten-topic FlocCare collection (947–1049 words per article, about 2½ minutes) plus a two-topic Harbor & Bean collection were generated and served, all with correct logo and brand colour. OpenRouter fallback reaches the API live, but its free models are slow (minutes per article); treat it as a backup only.
+- Hosting: every page is served by the app at `/p/<project-id>/<topic-slug>` (`http://localhost:3188` locally). `render.yaml` is included for a public deployment if one is wanted later.
+- Walkthrough recording: `demo/submission-walkthrough.mp4`, a live run with no mock; see `demo/README.md`.

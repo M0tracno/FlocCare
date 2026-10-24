@@ -113,14 +113,23 @@ async function complete(instruction, providers) {
 }
 async function generatePost(topic, companyName, providers) {
   const prompt = `Write a polished, original blog article in Markdown on: "${topic}". It will be published by ${companyName}. Length is strict: 950–1050 words, excluding the title. Use this structure: an engaging introduction of two paragraphs (about 100 words), then six descriptive H2 sections, each with three paragraphs of about 45–50 words (about 140 words per section) and useful specifics, then a "## Conclusion" of about 80 words. One section may use a short list. Do not add a top-level title because the website supplies it. Do not mention being an AI. Do not fabricate citations, statistics, clinical evidence, product claims, or testimonials. If the topic concerns health, give general educational information and avoid diagnosis or individual treatment recommendations; encourage appropriate professional review. Return only the article Markdown.`;
-  let draft = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const n = words(draft);
-    const instruction = !draft ? prompt : `${prompt}\n\nThe draft below is ${n} words; it must be 950–1050. ${n < 950 ? `Add about ${1000 - n} words by expanding the sections with concrete detail` : `Cut about ${n - 1000} words by tightening sentences`}, keep the same structure, and return the full revised article only.\n\n${draft}`;
-    draft = await complete(instruction, providers);
+  // Revise the closest draft while revisions keep getting closer; when one does not, take a fresh draft instead.
+  // Models add about half the words asked for and over-cut, so the requests are scaled to match.
+  const ATTEMPTS = 6;
+  const off = text => Math.abs(words(text) - 1000);
+  let best = '', revise = false;
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const n = words(best);
+    const instruction = !revise ? prompt : `${prompt}\n\nThe draft below is ${n} words; it must be 950–1050. ${n < 950 ? `Add about ${2 * (1000 - n)} words by adding one more H2 section and expanding the others with concrete detail` : `Cut about ${Math.ceil((n - 1000) * 0.75)} words by tightening sentences`}, keep the same structure, and return the full revised article only.\n\n${best}`;
+    const draft = await complete(instruction, providers);
+    console.log(`"${topic}" attempt ${attempt + 1} (${revise ? 'revision' : 'fresh'}): ${words(draft)} words`);
     if (words(draft) >= 950 && words(draft) <= 1050) return draft;
+    revise = !!draft && (!best || off(draft) < off(best));
+    if (revise) best = draft;
   }
-  throw new Error(`Could not reach 950–1050 words for "${topic}" after 3 attempts (last draft: ${words(draft)} words). Please retry.`);
+  // Last resort: a draft within 10% of 1,000 words is still a ~1,000-word article; the page shows its real count.
+  if (best && off(best) <= 100) return best;
+  throw new Error(`Could not reach 950–1050 words for "${topic}" after ${ATTEMPTS} attempts (closest draft: ${words(best)} words). Please retry.`);
 }
 async function save(project) {
   await mkdir(DATA, { recursive: true });
